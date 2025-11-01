@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chess Tournament Builder</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="app-header">
+        <h1>Chess Tournament Builder</h1>
+        <p>Organise Swiss tournaments with Dutch or Monrad pairings.</p>
+    </header>
+
+    <main class="app-main">
+        <section class="panel" id="settings-panel">
+            <h2>Setup</h2>
+            <form id="settings-form" class="form-grid">
+                <label>
+                    Tournament Type
+                    <select id="tournament-type" required>
+                        <option value="swiss" selected>Swiss</option>
+                    </select>
+                </label>
+                <label>
+                    Pairing Method
+                    <select id="pairing-method" required>
+                        <option value="dutch" selected>Dutch</option>
+                        <option value="monrad">Monrad</option>
+                    </select>
+                </label>
+                <label>
+                    Opt-Out Bye Value
+                    <select id="optout-points" required>
+                        <option value="0.5" selected>Half-point (½)</option>
+                        <option value="0">Zero-point (0)</option>
+                    </select>
+                </label>
+                <label>
+                    Rounds
+                    <input type="number" id="round-count" min="1" max="20" value="5" required>
+                </label>
+                <button type="button" id="start-btn" class="primary">Start Tournament</button>
+            </form>
+        </section>
+
+        <section class="panel" id="players-panel">
+            <h2>Players</h2>
+            <form id="add-player-form" class="add-player">
+                <input type="text" id="player-name" placeholder="Name" required>
+                <input type="number" id="player-rating" placeholder="Rating" min="0" step="1" required>
+                <button type="submit">Add Player</button>
+            </form>
+            <div id="player-list" class="player-list"></div>
+        </section>
+
+        <section class="panel" id="optout-panel">
+            <h2>Round Preparation</h2>
+            <div id="optout-content" class="optout-content">
+                <p>Start the tournament to configure round opt-outs and pairings.</p>
+            </div>
+        </section>
+
+        <section class="panel" id="rounds-panel">
+            <h2>Rounds</h2>
+            <div id="rounds-container" class="rounds-container"></div>
+        </section>
+
+        <section class="panel" id="scoreboard-panel">
+            <h2>Standings</h2>
+            <div id="scoreboard" class="scoreboard"></div>
+        </section>
+    </main>
+
+    <div id="message-area" class="message-area" role="status" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
