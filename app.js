@@ -948,6 +948,62 @@ function describeResult(value) {
     }
 }
 
+function getMedianBuchholzOpponentScore(player) {
+    if (!player) {
+        return 0;
+    }
+    const forcedByeAdjustment = player.fullByeCount * 0.5;
+    const optOutByeAdjustment = player.optOutByeCount * (state.settings.optOutBye - 0.5);
+    const adjustedScore = player.score - forcedByeAdjustment - optOutByeAdjustment;
+    return Math.max(0, adjustedScore);
+}
+
+// Builds Median Buchholz contributions for every player so standings share a consistent tie-break metric.
+function calculateMedianBuchholzMap() {
+    const contributions = new Map();
+    state.players.forEach((player) => {
+        contributions.set(player.id, []);
+    });
+
+    state.rounds.forEach((round) => {
+        if (round.status !== "completed") {
+            return;
+        }
+        round.pairings.forEach((pairing) => {
+            if (pairing.type === "match") {
+                const whitePlayer = getPlayerById(pairing.whiteId);
+                const blackPlayer = getPlayerById(pairing.blackId);
+                if (!whitePlayer || !blackPlayer) {
+                    return;
+                }
+                contributions.get(whitePlayer.id).push(getMedianBuchholzOpponentScore(blackPlayer));
+                contributions.get(blackPlayer.id).push(getMedianBuchholzOpponentScore(whitePlayer));
+            } else if (pairing.type === "bye") {
+                const byePlayer = getPlayerById(pairing.playerId);
+                if (!byePlayer) {
+                    return;
+                }
+                contributions.get(byePlayer.id).push(0);
+            }
+        });
+    });
+
+    const result = new Map();
+    contributions.forEach((values, playerId) => {
+        const roundsPlayed = values.length;
+        if (roundsPlayed <= 2) {
+            result.set(playerId, { value: null, display: "N/A" });
+            return;
+        }
+        const sorted = values.slice().sort((a, b) => a - b);
+        const trimmed = roundsPlayed >= 9 ? sorted.slice(2, sorted.length - 2) : sorted.slice(1, sorted.length - 1);
+        const total = trimmed.reduce((sum, entry) => sum + entry, 0);
+        result.set(playerId, { value: total, display: formatScore(total) });
+    });
+
+    return result;
+}
+
 function renderScoreboard() {
     const container = document.getElementById("scoreboard");
     if (!container) {
@@ -959,11 +1015,20 @@ function renderScoreboard() {
         return;
     }
 
+    const medianBuchholz = calculateMedianBuchholzMap();
+
     const ranked = state.players
         .slice()
         .sort((a, b) => {
             if (b.score !== a.score) {
                 return b.score - a.score;
+            }
+            const mbA = medianBuchholz.get(a.id)?.value;
+            const mbB = medianBuchholz.get(b.id)?.value;
+            const safeA = mbA === null || mbA === undefined ? -Infinity : mbA;
+            const safeB = mbB === null || mbB === undefined ? -Infinity : mbB;
+            if (safeB !== safeA) {
+                return safeB - safeA;
             }
             if (b.rating !== a.rating) {
                 return b.rating - a.rating;
@@ -983,12 +1048,15 @@ function renderScoreboard() {
             }
             const byeSummary = byeSummaryParts.join(", ") || "-";
             const colorSummary = `${player.colorHistory.white}/${player.colorHistory.black}`;
+            const medianInfo = medianBuchholz.get(player.id);
+            const medianDisplay = medianInfo ? medianInfo.display : "N/A";
             return `
                 <tr>
                     <td>${index + 1}</td>
                     <td>${player.name}</td>
                     <td>${player.rating}</td>
                     <td>${formatScore(player.score)}</td>
+                    <td>${medianDisplay}</td>
                     <td>${totalGames}</td>
                     <td>${colorSummary}</td>
                     <td>${byeSummary}</td>
@@ -1005,6 +1073,7 @@ function renderScoreboard() {
                     <th>Name</th>
                     <th>Rating</th>
                     <th>Score</th>
+                    <th><span title="Median Buchholz: sum of opponents' adjusted scores excluding the highest and lowest (two each for 9+ rounds).">MB</span></th>
                     <th>Games</th>
                     <th>W/B</th>
                     <th>Byes</th>
