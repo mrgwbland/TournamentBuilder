@@ -98,6 +98,19 @@ body {
     transition: background 0.2s ease;
 }
 
+.secondary {
+    background: var(--panel-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    cursor: pointer;
+    margin-left: 0.5rem;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.secondary:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--text);
+}
+
 .primary:hover:not(:disabled) {
     background: var(--accent-muted);
 }

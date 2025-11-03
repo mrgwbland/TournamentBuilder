@@ -42,6 +42,48 @@ function bindEventListeners() {
         startButton.addEventListener("click", startTournament);
     }
 
+    const importSampleButton = document.getElementById("import-sample-btn");
+    if (importSampleButton) {
+        importSampleButton.addEventListener("click", importSamplePlayers);
+    }
+function importSamplePlayers() {
+    if (state.started) {
+        flashMessage("error", "Cannot import after tournament start.");
+        return;
+    }
+    // Example set: 8 players, varied ratings
+    const samples = [
+        { name: "Attlee", rating: 2100 },
+        { name: "Bormann", rating: 2050 },
+        { name: "Churchill", rating: 2000 },
+        { name: "De Gaulle", rating: 1950 },
+        { name: "Eisenhower", rating: 1900 },
+        { name: "Franco", rating: 1850 },
+        { name: "Goering", rating: 1800 },
+        { name: "Hitler", rating: 1750 }
+    ];
+    samples.forEach((sample) => {
+        // Prevent duplicates
+        if (!state.players.some((p) => p.name === sample.name)) {
+            state.players.push({
+                id: state.nextPlayerId++,
+                name: sample.name,
+                rating: sample.rating,
+                initialSeed: state.players.length + 1,
+                score: 0,
+                matchesPlayed: 0,
+                colorHistory: { white: 0, black: 0 },
+                opponents: new Set(),
+                fullByeCount: 0,
+                optOutByeCount: 0,
+                lastColor: null
+            });
+        }
+    });
+    flashMessage("success", "Sample players imported.");
+    renderAll();
+}
+
     document.addEventListener("submit", (event) => {
         if (event.target && event.target.id === "optout-form") {
             event.preventDefault();
@@ -289,7 +331,7 @@ function buildPairings(players, method) {
         return null;
     }
 
-    const seeded = players
+    const orderedPlayers = players
         .slice()
         .sort((a, b) => {
             if (b.score !== a.score) {
@@ -299,33 +341,137 @@ function buildPairings(players, method) {
                 return b.rating - a.rating;
             }
             return a.name.localeCompare(b.name);
-        })
-        .map((player, index) => ({ player, seed: index }));
+        });
 
-    const prepared = method === "dutch" ? prepareDutchOrder(seeded) : prepareMonradOrder(seeded);
-    const result = backtrackPairs(prepared, method, []);
+    const prepared = method === "dutch" ? prepareDutchEntries(orderedPlayers) : prepareMonradEntries(orderedPlayers);
+    if (!prepared) {
+        return null;
+    }
+
+    let result = backtrackPairs(prepared, method, []);
+
+    if (!result && method === "dutch") {
+        const relaxedEntries = prepareDutchRelaxedEntries(orderedPlayers);
+        result = backtrackPairs(relaxedEntries, "dutch-relaxed", []);
+    }
+
     return result;
 }
 
-function prepareDutchOrder(seeded) {
-    const half = seeded.length / 2;
-    const arranged = [];
-    for (let index = 0; index < half; index += 1) {
-        const top = seeded[index];
-        const bottom = seeded[half + index];
-        arranged.push({ player: top.player, seed: top.seed, group: 0, index: arranged.length });
-        arranged.push({ player: bottom.player, seed: bottom.seed, group: 1, index: arranged.length });
+function prepareDutchEntries(players) {
+    const scoreGroups = groupPlayersByScore(players);
+    const adjustedGroups = [];
+    let carry = null;
+
+    for (let index = 0; index < scoreGroups.length; index += 1) {
+        const group = scoreGroups[index];
+        let groupPlayers = group.players.slice();
+
+        if (carry) {
+            groupPlayers.push(carry);
+            carry = null;
+        }
+
+        groupPlayers.sort(sortByRatingThenName);
+
+        if (groupPlayers.length % 2 === 1) {
+            carry = groupPlayers.pop();
+        }
+
+        if (groupPlayers.length) {
+            adjustedGroups.push({ score: group.score, players: groupPlayers });
+        }
     }
-    return arranged;
+
+    if (carry) {
+        const lastGroup = adjustedGroups[adjustedGroups.length - 1];
+        if (!lastGroup) {
+            return null;
+        }
+        lastGroup.players.push(carry);
+        lastGroup.players.sort(sortByRatingThenName);
+        if (lastGroup.players.length % 2 === 1) {
+            return null;
+        }
+    }
+
+    const entries = [];
+    let runningIndex = 0;
+    adjustedGroups.forEach((group, groupId) => {
+        const size = group.players.length;
+        const half = size / 2;
+        const topHalf = group.players.slice(0, half);
+        const bottomHalf = group.players.slice(half);
+
+        topHalf.forEach((player, slot) => {
+            entries.push({
+                player,
+                groupId,
+                half: "top",
+                slot,
+                index: runningIndex,
+                score: group.score
+            });
+            runningIndex += 1;
+        });
+
+        bottomHalf.forEach((player, slot) => {
+            entries.push({
+                player,
+                groupId,
+                half: "bottom",
+                slot,
+                index: runningIndex,
+                score: group.score
+            });
+            runningIndex += 1;
+        });
+    });
+
+    return entries;
 }
 
-function prepareMonradOrder(seeded) {
-    return seeded.map((entry, index) => ({
-        player: entry.player,
-        seed: entry.seed,
-        group: 0,
-        index
+function prepareMonradEntries(players) {
+    return players.map((player, index) => ({
+        player,
+        groupId: 0,
+        half: "any",
+        slot: index,
+        index,
+        score: player.score
     }));
+}
+
+function prepareDutchRelaxedEntries(players) {
+    return players.map((player, index) => ({
+        player,
+        groupId: 0,
+        half: "any",
+        slot: index,
+        index,
+        score: player.score
+    }));
+}
+
+function groupPlayersByScore(players) {
+    const groups = [];
+    players.forEach((player) => {
+        const scoreKey = Number((player.score ?? 0).toFixed(2));
+        const lastGroup = groups[groups.length - 1];
+        if (!lastGroup || lastGroup.score !== scoreKey) {
+            groups.push({ score: scoreKey, players: [player] });
+        } else {
+            lastGroup.players.push(player);
+        }
+    });
+    return groups;
+}
+
+function sortByRatingThenName(a, b) {
+    if (b.rating !== a.rating) {
+        return b.rating - a.rating;
+    }
+    return a.name.localeCompare(b.name);
 }
 
 function backtrackPairs(remaining, method, currentPairs) {
@@ -355,16 +501,42 @@ function backtrackPairs(remaining, method, currentPairs) {
 
 function orderCandidates(first, rest, method) {
     if (method === "dutch") {
-        const crossGroup = [];
-        const sameGroup = [];
-        rest.forEach((candidate) => {
-            if (candidate.group !== first.group) {
-                crossGroup.push(candidate);
-            } else {
-                sameGroup.push(candidate);
-            }
-        });
-        return crossGroup.concat(sameGroup);
+        const primary = rest.filter((candidate) => candidate.groupId === first.groupId && candidate.half !== first.half);
+        if (primary.length) {
+            return primary.sort((a, b) => {
+                const slotDiff = Math.abs(a.slot - first.slot) - Math.abs(b.slot - first.slot);
+                if (slotDiff !== 0) {
+                    return slotDiff;
+                }
+                return sortByRatingThenName(a.player, b.player);
+            });
+        }
+
+        // Fallback: allow cross-group adjustments while keeping top vs bottom balance.
+        return rest
+            .filter((candidate) => candidate.half !== first.half)
+            .sort((a, b) => {
+                if (a.groupId !== b.groupId) {
+                    return a.groupId - b.groupId;
+                }
+                const slotDiff = Math.abs(a.slot - first.slot) - Math.abs(b.slot - first.slot);
+                if (slotDiff !== 0) {
+                    return slotDiff;
+                }
+                return sortByRatingThenName(a.player, b.player);
+            });
+    }
+
+    if (method === "dutch-relaxed") {
+        return rest
+            .slice()
+            .sort((a, b) => {
+                const scoreDiff = Math.abs(a.score - first.score) - Math.abs(b.score - first.score);
+                if (scoreDiff !== 0) {
+                    return scoreDiff;
+                }
+                return Math.abs(a.slot - first.slot) - Math.abs(b.slot - first.slot);
+            });
     }
 
     if (method === "monrad") {
