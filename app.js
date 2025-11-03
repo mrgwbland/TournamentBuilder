@@ -18,7 +18,7 @@ const resultOptions = [
     { value: "", label: "Select result" },
     { value: "1-0", label: "1 - 0 (White wins)" },
     { value: "0-1", label: "0 - 1 (Black wins)" },
-    { value: "0.5-0.5", label: "0 - 0 (Draw)" }
+    { value: "0.5-0.5", label: "1/2 - 1/2 (Draw)" }
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -834,13 +834,36 @@ function renderRounds() {
         return;
     }
 
+    // Hide previous rounds by default, show only the latest
+    const latestRoundNumber = Math.max(...state.rounds.map(r => r.number));
+    let showPrevious = window._showPreviousRounds || false;
+
+    // Toggle button
+    const toggleBtn = `<button id="toggle-rounds-btn" class="secondary" style="margin-bottom:10px;">${showPrevious ? "Hide" : "Show"} Previous Rounds</button>`;
+
+    // Render rounds
     const cards = state.rounds
         .slice()
         .sort((a, b) => a.number - b.number)
-        .map((round) => renderRoundCard(round))
+        .map((round) => {
+            if (round.number === latestRoundNumber || showPrevious) {
+                return `<div class="round-visible">${renderRoundCard(round)}</div>`;
+            } else {
+                return `<div class="round-hidden" style="display:none;">${renderRoundCard(round)}</div>`;
+            }
+        })
         .join("");
 
-    container.innerHTML = cards;
+    container.innerHTML = toggleBtn + cards;
+
+    // Add event listener for toggle
+    const btn = document.getElementById("toggle-rounds-btn");
+    if (btn) {
+        btn.onclick = function() {
+            window._showPreviousRounds = !window._showPreviousRounds;
+            renderRounds();
+        };
+    }
 }
 
 function renderRoundCard(round) {

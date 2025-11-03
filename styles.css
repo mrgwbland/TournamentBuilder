@@ -11,7 +11,8 @@
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
-* {
+/* Ensure all elements use border-box */
+*, *::before, *::after {
     box-sizing: border-box;
 }
 
@@ -43,6 +44,11 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 1.5rem;
     padding: 1.5rem;
+    /* Responsive for small screens */
+    @media (max-width: 600px) {
+        flex-direction: column;
+        padding: 0.5em;
+    }
 }
 
 .panel {
@@ -54,6 +60,12 @@ body {
     flex-direction: column;
     gap: 1rem;
     box-shadow: 0 12px 24px rgba(8, 12, 20, 0.35);
+    /* Responsive panels */
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    padding: 1em;
+    margin: 1em 0;
 }
 
 .panel h2 {
@@ -64,6 +76,10 @@ body {
 .form-grid {
     display: grid;
     gap: 0.75rem;
+    /* Responsive form grid */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
 }
 
 .form-grid label {
