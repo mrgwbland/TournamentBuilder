@@ -965,7 +965,7 @@ function describeResult(value) {
         case "0-1":
             return "0 - 1";
         case "0.5-0.5":
-            return "0 - 0";
+            return "0.5 - 0.5";
         default:
             return value;
     }
