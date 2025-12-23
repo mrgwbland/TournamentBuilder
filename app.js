@@ -834,6 +834,12 @@ function renderRounds() {
         return;
     }
 
+    // Capture current select values before re-rendering
+    const currentSelections = new Map();
+    container.querySelectorAll("select[data-result-for]").forEach((select) => {
+        currentSelections.set(select.dataset.resultFor, select.value);
+    });
+
     // Hide previous rounds by default, show only the latest
     const latestRoundNumber = Math.max(...state.rounds.map(r => r.number));
     let showPrevious = window._showPreviousRounds || false;
@@ -847,9 +853,9 @@ function renderRounds() {
         .sort((a, b) => a.number - b.number)
         .map((round) => {
             if (round.number === latestRoundNumber || showPrevious) {
-                return `<div class="round-visible">${renderRoundCard(round)}</div>`;
+                return `<div class="round-visible">${renderRoundCard(round, currentSelections)}</div>`;
             } else {
-                return `<div class="round-hidden" style="display:none;">${renderRoundCard(round)}</div>`;
+                return `<div class="round-hidden" style="display:none;">${renderRoundCard(round, currentSelections)}</div>`;
             }
         })
         .join("");
@@ -866,7 +872,7 @@ function renderRounds() {
     }
 }
 
-function renderRoundCard(round) {
+function renderRoundCard(round, currentSelections = new Map()) {
     const matches = round.pairings
         .filter((pairing) => pairing.type === "match")
         .slice()
@@ -877,7 +883,7 @@ function renderRoundCard(round) {
         .map((pairing) => {
             const white = getPlayerById(pairing.whiteId);
             const black = getPlayerById(pairing.blackId);
-            const select = createResultSelect(pairing, round.status === "completed");
+            const select = createResultSelect(pairing, round.status === "completed", currentSelections);
             const storedResult = pairing.result ? describeResult(pairing.result) : "Not set";
 
             return `
@@ -944,11 +950,15 @@ function renderRoundCard(round) {
     `;
 }
 
-function createResultSelect(pairing, disabled) {
+function createResultSelect(pairing, disabled, currentSelections = new Map()) {
+    // Check if there's a current selection for this pairing
+    const currentValue = currentSelections.get(pairing.id);
+    const selectedValue = currentValue !== undefined ? currentValue : pairing.result;
+    
     const options = resultOptions
         .map((option) => {
             const attributes = [];
-            if (pairing.result === option.value || (!pairing.result && option.value === "")) {
+            if (selectedValue === option.value || (!selectedValue && option.value === "")) {
                 attributes.push("selected");
             }
             return `<option value="${option.value}" ${attributes.join(" ")}>${option.label}</option>`;
